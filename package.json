@@ -1,0 +1,9 @@
+{
+  "name": "income-insurance-pipeline",
+  "version": "1.0.0",
+  "description": "Income Insurance (Care Secure Pro) — Meta Ads pipeline with daily Telegram briefing",
+  "dependencies": {
+    "googleapis": "^131.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}

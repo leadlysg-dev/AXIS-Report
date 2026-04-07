@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Income Insurance — Pipeline Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4ea; padding: 20px; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: #fff; }
+    .subtitle { color: #6b7280; font-size: 0.85rem; margin-bottom: 24px; }
+    .card { background: #1a1d27; border: 1px solid #2a2d37; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 1rem; margin-bottom: 12px; color: #a78bfa; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    input[type="date"], input[type="text"] { background: #0f1117; border: 1px solid #2a2d37; color: #e1e4ea; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; }
+    button { background: #6d28d9; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+    button:hover { background: #7c3aed; }
+    button.secondary { background: #374151; }
+    button.secondary:hover { background: #4b5563; }
+    button.green { background: #059669; }
+    button.green:hover { background: #10b981; }
+    .output { background: #0f1117; border: 1px solid #2a2d37; border-radius: 8px; padding: 12px; margin-top: 10px; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; display: none; }
+    .output.show { display: block; }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .status.ok { background: #064e3b; color: #6ee7b7; }
+    .status.fail { background: #7f1d1d; color: #fca5a5; }
+    .env-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #6d28d9; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-left: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>📊 Income Insurance — Pipeline Admin</h1>
+  <p class="subtitle">Care Secure Pro · Meta Ads · Ad-level tracking</p>
+
+  <!-- ENV CHECK -->
+  <div class="card">
+    <h2>🔑 Environment Check</h2>
+    <button onclick="checkEnv()">Check Env Vars</button>
+    <div id="envResult" class="output"></div>
+  </div>
+
+  <!-- DAILY PULL -->
+  <div class="card">
+    <h2>📥 Daily Pull (Meta Ads → Sheet)</h2>
+    <div class="row">
+      <label>Date:</label>
+      <input type="date" id="pullDate" />
+      <button onclick="runPull()">Run Pull</button>
+    </div>
+    <div id="pullResult" class="output"></div>
+  </div>
+
+  <!-- BACKFILL -->
+  <div class="card">
+    <h2>📦 Backfill (Date Range)</h2>
+    <div class="row">
+      <label>From:</label>
+      <input type="date" id="backfillStart" />
+      <label>To:</label>
+      <input type="date" id="backfillEnd" />
+      <button class="secondary" onclick="runBackfill()">Run Backfill</button>
+    </div>
+    <p style="color:#6b7280;font-size:0.75rem;margin-top:4px;">⚠️ Large ranges may take a while. Each date = 1 API call + ~1 sec delay.</p>
+    <div id="backfillResult" class="output"></div>
+  </div>
+
+  <!-- DAILY INSIGHT -->
+  <div class="card">
+    <h2>💬 Daily Telegram Briefing</h2>
+    <div class="row">
+      <button class="secondary" onclick="previewInsight()">Preview</button>
+      <button class="green" onclick="sendInsight()">Generate & Send to Telegram</button>
+    </div>
+    <div id="insightResult" class="output"></div>
+  </div>
+
+  <!-- WEEKLY SUMMARY -->
+  <div class="card">
+    <h2>📅 Weekly Summary (Tuesday)</h2>
+    <div class="row">
+      <button class="secondary" onclick="previewWeekly()">Preview</button>
+      <button class="green" onclick="sendWeekly()">Generate & Send to Telegram</button>
+    </div>
+    <div id="weeklyResult" class="output"></div>
+  </div>
+
+  <script>
+    // Set default dates
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const fmt = d => d.toISOString().split('T')[0];
+
+    document.getElementById('pullDate').value = fmt(yesterday);
+    document.getElementById('backfillEnd').value = fmt(yesterday);
+    document.getElementById('backfillStart').value = '2026-01-01';
+
+    async function callApi(path, outputId) {
+      const out = document.getElementById(outputId);
+      out.classList.add('show');
+      out.textContent = 'Loading...';
+      try {
+        const res = await fetch(path);
+        const json = await res.json();
+        out.textContent = JSON.stringify(json, null, 2);
+      } catch (err) {
+        out.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function checkEnv() {
+      callApi('/api/env-check', 'envResult');
+    }
+
+    function runPull() {
+      const date = document.getElementById('pullDate').value;
+      callApi(`/api/daily-pull?date=${date}`, 'pullResult');
+    }
+
+    function runBackfill() {
+      const start = document.getElementById('backfillStart').value;
+      const end = document.getElementById('backfillEnd').value;
+      callApi(`/api/daily-pull?start=${start}&end=${end}`, 'backfillResult');
+    }
+
+    function previewInsight() {
+      callApi('/api/daily-insight?preview=true', 'insightResult');
+    }
+
+    function sendInsight() {
+      if (confirm('Send daily briefing to Telegram now?')) {
+        callApi('/api/daily-insight', 'insightResult');
+      }
+    }
+
+    function previewWeekly() {
+      callApi('/api/weekly-summary?preview=true', 'weeklyResult');
+    }
+
+    function sendWeekly() {
+      if (confirm('Send weekly summary to Telegram now?')) {
+        callApi('/api/weekly-summary', 'weeklyResult');
+      }
+    }
+  </script>
+</body>
+</html>
