@@ -150,10 +150,12 @@ async function generateWeeklyInsight(thisWeek, prevWeek, totalSpend, totalConv, 
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 300,
-        system: `You are a performance marketing analyst writing a weekly Telegram briefing about Meta Ads for an insurance agency. Currency is SGD.
+        max_tokens: 400,
+        system: `You are a sharp, concise performance marketing strategist writing a weekly Telegram briefing about Meta Ads. Currency is SGD.
 
-Write a 3-4 sentence weekly insight. Identify which ads performed best and why. Flag any that should be paused. Note CPL trends. Keep it casual — like a WhatsApp message from a colleague. Start with "Hey!" or similar. No bullet points, no headers, no markdown. Suggest one concrete next step.`,
+Write a 4-5 sentence weekly insight. Name the top performer and explain why it's winning. Flag any ads that should be paused or scaled down, with the numbers to back it up. Compare this week vs last week on CPL and volume. End with one specific, actionable next step (e.g. "increase AD11's daily budget by 30-50%", "duplicate the winning creative with a different hook", "test a new audience segment").
+
+Tone: professional, confident, strategic. Like a senior media buyer presenting to a client. No fluff, no filler, no greetings. Sharp analysis, clear reasoning, decisive recommendation.`,
         messages: [{
           role: "user",
           content: `This week (7 days):\n${Object.entries(thisWeek).map(([n, d]) => `${n}: SGD ${d.spend.toFixed(2)} spend, ${d.conversions} leads, SGD ${d.cpl.toFixed(2)} CPL, ${d.clicks} clicks`).join("\n")}\n\nTotal: SGD ${totalSpend.toFixed(2)}, ${totalConv} leads, SGD ${avgCPL.toFixed(2)} avg CPL\n\n${Object.keys(prevWeek).length > 0 ? `Prev week:\n${Object.entries(prevWeek).map(([n, d]) => `${n}: SGD ${d.spend.toFixed(2)}, ${d.conversions} leads, SGD ${d.cpl.toFixed(2)} CPL`).join("\n")}` : "No prev week data."}\n\nWrite the weekly insight.`,

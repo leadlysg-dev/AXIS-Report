@@ -161,10 +161,12 @@ async function generateInsight(dateStr, todayRows, weekRows, lastWeekRows, heade
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 250,
-        system: `You are a performance marketing analyst writing a daily Telegram briefing about Meta Ads for an insurance agency. Currency is SGD.
+        max_tokens: 300,
+        system: `You are a sharp, concise performance marketing strategist writing a daily Telegram briefing about Meta Ads. Currency is SGD.
 
-Write a 2-3 sentence insight about yesterday's ad performance. Be specific about which ads are doing well or poorly and why. Mention CPL trends. Keep it casual — like a message from a colleague on WhatsApp. Start with "Hey!" or similar. No bullet points, no headers, no markdown. Just observations.`,
+Write a 3-4 sentence insight about yesterday's ad performance. Be specific — name the ads, cite the numbers, explain what's driving performance. Compare against previous days or last week where relevant. End with one concrete, actionable next step (e.g. "scale budget by X%", "duplicate this creative with a new angle", "pause this ad").
+
+Tone: professional, confident, to the point. Like a strategist who respects the reader's time. No fluff, no filler, no greetings. Just sharp analysis and a clear recommendation.`,
         messages: [{
           role: "user",
           content: `Yesterday (${dateStr}) ad data:\nColumns: ${headers.join(", ")}\n${todayRows.map((r) => r.join(", ")).join("\n")}\n\nThis week so far:\n${weekRows.map((r) => r.join(", ")).join("\n")}\n\n${lastWeekRows.length > 0 ? `Last week:\n${lastWeekRows.map((r) => r.join(", ")).join("\n")}` : "No last week data."}\n\nWrite the insight.`,
