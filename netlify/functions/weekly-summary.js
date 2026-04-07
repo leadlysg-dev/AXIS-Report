@@ -2,9 +2,6 @@ const fetch = require("node-fetch");
 const { getSheets, readTab } = require("./sheets-writer");
 const CONFIG = require("./config");
 
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${CONFIG.sheets.sheetId || "1f_utIL-R3apr3AMNO38e9BB-_pSnFcY8ye8aC3BJWzg"}`;
-const DASHBOARD_URL = process.env.SITE_URL ? `${process.env.SITE_URL}/dashboard.html` : "";
-
 /**
  * Weekly Tuesday summary — plain text, AARO style
  */
@@ -63,18 +60,17 @@ exports.handler = async (event) => {
     const fmtShort = (d) => `${d.getDate().toString().padStart(2, "0")} ${monthNames[d.getMonth()]}`;
 
     // === BUILD MESSAGE ===
-    let msg = `Income Insurance — Weekly Report\n`;
-    msg += `${fmtShort(weekAgo)} – ${fmtShort(today)} ${today.getFullYear()}\n\n`;
+    let msg = `${fmtShort(weekAgo)} – ${fmtShort(today)} ${today.getFullYear()}\n\n`;
 
-    msg += `Leads generated: ${totalConv}`;
+    msg += `Leads: ${totalConv}`;
     if (convPct !== null) msg += ` (${convPct > 0 ? "+" : ""}${convPct}% vs prev wk)`;
     msg += `\n`;
 
-    msg += `Ad spend: SGD ${totalSpend.toFixed(2)}`;
+    msg += `Spend: SGD ${totalSpend.toFixed(2)}`;
     if (spendPct !== null) msg += ` (${spendPct > 0 ? "+" : ""}${spendPct}% vs prev wk)`;
     msg += `\n`;
 
-    msg += `Cost per lead: SGD ${avgCPL.toFixed(2)} | Clicks: ${totalClicks}\n\n`;
+    msg += `CPL: SGD ${avgCPL.toFixed(2)} | Clicks: ${totalClicks}\n\n`;
 
     // Sort by conversions
     const sortedAds = Object.entries(thisWeekByAd).sort((a, b) => {
@@ -108,11 +104,6 @@ exports.handler = async (event) => {
       insight = await generateWeeklyInsight(thisWeekByAd, prevWeekByAd, totalSpend, totalConv, avgCPL);
     }
     if (insight) msg += `\n${insight}\n`;
-
-    // Links
-    msg += `\n`;
-    if (DASHBOARD_URL) msg += `📊 Dashboard: ${DASHBOARD_URL}\n`;
-    msg += `📋 Sheet: ${SHEET_URL}\n`;
 
     msg += `\n— Leadly`;
 
@@ -160,9 +151,9 @@ async function generateWeeklyInsight(thisWeek, prevWeek, totalSpend, totalConv, 
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 300,
-        system: `You are a performance marketing analyst for Income Insurance running Meta Ads for "Care Secure Pro" (disability/critical illness insurance). Currency is SGD.
+        system: `You are a performance marketing analyst writing a weekly Telegram briefing about Meta Ads for an insurance agency. Currency is SGD.
 
-Write a 3-4 sentence weekly insight. Identify which ads performed best and why. Flag any that should be considered for pausing. Note CPL trends. Keep it conversational — like a message from a colleague. No bullet points, no headers, no markdown. Just observations and one suggested next step.`,
+Write a 3-4 sentence weekly insight. Identify which ads performed best and why. Flag any that should be paused. Note CPL trends. Keep it casual — like a WhatsApp message from a colleague. Start with "Hey!" or similar. No bullet points, no headers, no markdown. Suggest one concrete next step.`,
         messages: [{
           role: "user",
           content: `This week (7 days):\n${Object.entries(thisWeek).map(([n, d]) => `${n}: SGD ${d.spend.toFixed(2)} spend, ${d.conversions} leads, SGD ${d.cpl.toFixed(2)} CPL, ${d.clicks} clicks`).join("\n")}\n\nTotal: SGD ${totalSpend.toFixed(2)}, ${totalConv} leads, SGD ${avgCPL.toFixed(2)} avg CPL\n\n${Object.keys(prevWeek).length > 0 ? `Prev week:\n${Object.entries(prevWeek).map(([n, d]) => `${n}: SGD ${d.spend.toFixed(2)}, ${d.conversions} leads, SGD ${d.cpl.toFixed(2)} CPL`).join("\n")}` : "No prev week data."}\n\nWrite the weekly insight.`,

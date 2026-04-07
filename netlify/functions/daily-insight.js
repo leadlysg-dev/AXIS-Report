@@ -2,10 +2,6 @@ const fetch = require("node-fetch");
 const { getSheets, readTab } = require("./sheets-writer");
 const CONFIG = require("./config");
 
-// Links
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${CONFIG.sheets.sheetId || "1f_utIL-R3apr3AMNO38e9BB-_pSnFcY8ye8aC3BJWzg"}`;
-const DASHBOARD_URL = process.env.SITE_URL ? `${process.env.SITE_URL}/dashboard.html` : "";
-
 /**
  * Daily Telegram briefing — matches AARO format
  * Plain text, emoji traffic lights, Claude insight, links at bottom
@@ -82,12 +78,12 @@ exports.handler = async (event) => {
     // === BUILD MESSAGE ===
     let msg = "";
 
-    // Header
-    msg += `Income Insurance — ${dateDisplay}\n\n`;
+    // Just the date
+    msg += `${dateDisplay}\n\n`;
 
     // Summary line
-    msg += `Leads generated: ${totalConv}\n`;
-    msg += `Ad spend: SGD ${totalSpend.toFixed(2)} | Cost per lead: SGD ${cpl.toFixed(2)}\n\n`;
+    msg += `Leads: ${totalConv}\n`;
+    msg += `Spend: SGD ${totalSpend.toFixed(2)} | CPL: SGD ${cpl.toFixed(2)}\n\n`;
 
     // Per-ad breakdown with traffic lights
     for (const [name, data] of sortedAds) {
@@ -126,11 +122,6 @@ exports.handler = async (event) => {
       insight = await generateInsight(yesterdayStr, yesterdayRows, thisWeekRows, lastWeekRows, headerRow);
     }
     if (insight) msg += `\n${insight}\n`;
-
-    // Links
-    msg += `\n`;
-    if (DASHBOARD_URL) msg += `📊 Dashboard: ${DASHBOARD_URL}\n`;
-    msg += `📋 Sheet: ${SHEET_URL}\n`;
 
     // Sign off
     msg += `\n— Leadly`;
@@ -171,9 +162,9 @@ async function generateInsight(dateStr, todayRows, weekRows, lastWeekRows, heade
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 250,
-        system: `You are a performance marketing analyst for Income Insurance, running Meta Ads for "Care Secure Pro" (disability/critical illness insurance). Currency is SGD.
+        system: `You are a performance marketing analyst writing a daily Telegram briefing about Meta Ads for an insurance agency. Currency is SGD.
 
-Write a 2-3 sentence insight about yesterday's ad performance. Be specific about which ads are doing well or poorly. Mention CPL trends if relevant. Keep it conversational — like a message from a colleague. No bullet points, no headers, no markdown, no action items. Just observations and context.`,
+Write a 2-3 sentence insight about yesterday's ad performance. Be specific about which ads are doing well or poorly and why. Mention CPL trends. Keep it casual — like a message from a colleague on WhatsApp. Start with "Hey!" or similar. No bullet points, no headers, no markdown. Just observations.`,
         messages: [{
           role: "user",
           content: `Yesterday (${dateStr}) ad data:\nColumns: ${headers.join(", ")}\n${todayRows.map((r) => r.join(", ")).join("\n")}\n\nThis week so far:\n${weekRows.map((r) => r.join(", ")).join("\n")}\n\n${lastWeekRows.length > 0 ? `Last week:\n${lastWeekRows.map((r) => r.join(", ")).join("\n")}` : "No last week data."}\n\nWrite the insight.`,
