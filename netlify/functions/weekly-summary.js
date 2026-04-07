@@ -171,14 +171,16 @@ exports.handler = async (event) => {
 function aggregateByAd(rows, colIndex) {
   const byAd = {};
   for (const row of rows) {
-    const name = row[colIndex("Ad Name")] || "Unknown";
+    const name = row[colIndex("Ad name")] || "Unknown";
     if (!byAd[name]) {
       byAd[name] = { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
     }
-    byAd[name].spend += parseFloat(row[colIndex("Spend")] || 0);
-    byAd[name].clicks += parseInt(row[colIndex("Clicks")] || 0);
+    byAd[name].spend += parseFloat(row[colIndex("Amount spent (SGD)")] || 0);
+    byAd[name].clicks += parseInt(row[colIndex("Link clicks")] || 0);
     byAd[name].impressions += parseInt(row[colIndex("Impressions")] || 0);
-    byAd[name].conversions += parseInt(row[colIndex("Conversions")] || 0);
+    const leads = parseInt(row[colIndex("Leads")] || 0);
+    const msgConv = parseInt(row[colIndex("Messaging conversations started")] || 0);
+    byAd[name].conversions += leads + msgConv;
   }
   // Calculate CPL
   for (const ad of Object.values(byAd)) {

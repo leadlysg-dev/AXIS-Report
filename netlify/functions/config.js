@@ -27,7 +27,7 @@ const CONFIG = {
     sheetId: process.env.GOOGLE_SHEET_ID || "1f_utIL-R3apr3AMNO38e9BB-_pSnFcY8ye8aC3BJWzg",
     saEmail: process.env.GOOGLE_SA_EMAIL || "legacy-dash@legacy-dash.iam.gserviceaccount.com",
     saPrivateKey: process.env.GOOGLE_SA_PRIVATE_KEY, // base64 encoded
-    tabName: "META ADS RAW", // single tab — all ads in one sheet
+    tabName: "META ADS RAW", // daily API pull writes here
   },
 
   // Telegram
@@ -41,23 +41,25 @@ const CONFIG = {
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
 
-  // Sheet columns — ad-level data
+  // Sheet columns — matches Meta Ads export format exactly
   columns: [
-    "Date",
+    "Day",
     "Ad ID",
-    "Ad Name",
-    "Ad Set Name",
-    "Campaign Name",
-    "Spend",
+    "Ad name",
+    "Ad set name",
+    "Campaign name",
+    "Amount spent (SGD)",
     "Impressions",
-    "Clicks",
-    "CTR",
-    "CPC",
-    "CPM",
-    "Conversions",
-    "Cost Per Conversion",
     "Reach",
     "Frequency",
+    "Link clicks",
+    "CTR (all)",
+    "CPC (cost per link click)",
+    "CPM (cost per 1,000 impressions)",
+    "Leads",
+    "Cost per lead",
+    "Messaging conversations started",
+    "Cost per messaging conversation started",
   ],
 };
 

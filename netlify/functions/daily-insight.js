@@ -121,15 +121,19 @@ function buildBriefing(dateStr, todayRows, prevRows, wowRows, headers) {
   const colIndex = (name) => headers.indexOf(name);
 
   // Sum totals for today
-  const totalSpend = sumCol(todayRows, colIndex("Spend"));
-  const totalClicks = sumCol(todayRows, colIndex("Clicks"));
+  const totalSpend = sumCol(todayRows, colIndex("Amount spent (SGD)"));
+  const totalClicks = sumCol(todayRows, colIndex("Link clicks"));
   const totalImpressions = sumCol(todayRows, colIndex("Impressions"));
-  const totalConversions = sumCol(todayRows, colIndex("Conversions"));
+  const totalLeads = sumCol(todayRows, colIndex("Leads"));
+  const totalMsgConv = sumCol(todayRows, colIndex("Messaging conversations started"));
+  const totalConversions = totalLeads + totalMsgConv;
   const avgCPL = totalConversions > 0 ? totalSpend / totalConversions : 0;
 
   // WoW comparison
-  const wowSpend = sumCol(wowRows, colIndex("Spend"));
-  const wowConversions = sumCol(wowRows, colIndex("Conversions"));
+  const wowSpend = sumCol(wowRows, colIndex("Amount spent (SGD)"));
+  const wowLeads = sumCol(wowRows, colIndex("Leads"));
+  const wowMsg = sumCol(wowRows, colIndex("Messaging conversations started"));
+  const wowConversions = wowLeads + wowMsg;
 
   const spendChange = wowSpend > 0 ? ((totalSpend - wowSpend) / wowSpend * 100).toFixed(0) : "N/A";
   const convChange = wowConversions > 0 ? ((totalConversions - wowConversions) / wowConversions * 100).toFixed(0) : "N/A";
@@ -152,13 +156,15 @@ function buildBriefing(dateStr, todayRows, prevRows, wowRows, headers) {
   // Per-ad breakdown with traffic lights
   msg += `*Ad Breakdown:*\n`;
   const sorted = [...todayRows].sort(
-    (a, b) => parseFloat(b[colIndex("Spend")] || 0) - parseFloat(a[colIndex("Spend")] || 0)
+    (a, b) => parseFloat(b[colIndex("Amount spent (SGD)")] || 0) - parseFloat(a[colIndex("Amount spent (SGD)")] || 0)
   );
 
   for (const row of sorted) {
-    const adName = row[colIndex("Ad Name")] || "Unknown";
-    const spend = parseFloat(row[colIndex("Spend")] || 0);
-    const conv = parseInt(row[colIndex("Conversions")] || 0);
+    const adName = row[colIndex("Ad name")] || "Unknown";
+    const spend = parseFloat(row[colIndex("Amount spent (SGD)")] || 0);
+    const leads = parseInt(row[colIndex("Leads")] || 0);
+    const msgConv = parseInt(row[colIndex("Messaging conversations started")] || 0);
+    const conv = leads + msgConv;
     const cpl = conv > 0 ? spend / conv : 0;
 
     // Traffic light based on CPL relative to average
