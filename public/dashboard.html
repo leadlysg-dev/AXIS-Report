@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Income Insurance — Ad Performance</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0e14;--surface:#141620;--surface2:#1a1d2a;--border:#252838;
+  --text:#e8eaf0;--text2:#8b90a0;--text3:#5c6070;
+  --accent:#a78bfa;--accent2:#6d28d9;--green:#34d399;--red:#f87171;--yellow:#fbbf24;--blue:#60a5fa;
+  --radius:10px;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.5;min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+
+/* Layout */
+.container{max-width:1200px;margin:0 auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.3rem;font-weight:700;letter-spacing:-0.02em}
+.header .product{color:var(--accent);font-size:0.8rem;font-weight:600;background:rgba(167,139,250,0.12);padding:3px 10px;border-radius:20px}
+.header .updated{color:var(--text3);font-size:0.75rem;font-family:'JetBrains Mono',monospace}
+
+/* Pills */
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.pill{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:20px;font-size:0.8rem;cursor:pointer;transition:all 0.2s;font-family:inherit}
+.pill:hover{border-color:var(--accent);color:var(--text)}
+.pill.active{background:var(--accent2);border-color:var(--accent);color:#fff}
+.date-inputs{display:none;align-items:center;gap:6px}
+.date-inputs.show{display:inline-flex}
+.date-inputs input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.8rem;font-family:inherit}
+
+/* KPI Grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.kpi .label{font-size:0.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.kpi .value{font-size:1.6rem;font-weight:700;letter-spacing:-0.03em;font-family:'JetBrains Mono',monospace}
+.kpi .change{font-size:0.75rem;margin-top:2px;font-family:'JetBrains Mono',monospace}
+.kpi .change.up{color:var(--green)}.kpi .change.down{color:var(--red)}.kpi .change.flat{color:var(--text3)}
+
+/* Charts */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:768px){.chart-row{grid-template-columns:1fr}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.chart-card h3{font-size:0.8rem;color:var(--text2);margin-bottom:12px;font-weight:500}
+.chart-card canvas{width:100%!important;max-height:220px}
+
+/* Table */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:24px;overflow-x:auto}
+.table-card h3{font-size:0.85rem;margin-bottom:12px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:0.8rem}
+th{text-align:left;padding:8px 10px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em}
+td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04);white-space:nowrap}
+tr:hover td{background:rgba(167,139,250,0.04)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:0.78rem}
+.light-green{color:var(--green)}.light-red{color:var(--red)}.light-yellow{color:var(--yellow)}
+
+/* Loading */
+.loading{display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:12px}
+.loading .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{color:var(--text3);font-size:0.85rem}
+.error-box{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--red);padding:16px;border-radius:var(--radius);text-align:center;margin:40px auto;max-width:500px}
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Loading ad data...</p>
+  </div>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+const SHEET_ID = '1f_utIL-R3apr3AMNO38e9BB-_pSnFcY8ye8aC3BJWzg';
+const TAB_NAME = 'META ADS RAW';
+const API_KEY = ''; // Set if using API key auth, otherwise leave empty for public sheet
+
+// Fetch URL — works for sheets shared as "Anyone with the link"
+const SHEETS_URL = API_KEY
+  ? `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/'${encodeURIComponent(TAB_NAME)}'!A1:Z?key=${API_KEY}`
+  : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(TAB_NAME)}`;
+
+// ===================== INIT =====================
+(async () => {
+  try {
+    let rows;
+    if (API_KEY) {
+      const res = await fetch(SHEETS_URL);
+      const json = await res.json();
+      rows = json.values || [];
+    } else {
+      const res = await fetch(SHEETS_URL);
+      const csv = await res.text();
+      rows = parseCSV(csv);
+    }
+    if (rows.length <= 1) throw new Error('No data found in sheet');
+    initApp(rows);
+  } catch (err) {
+    document.getElementById('app').innerHTML = `<div class="error-box">Failed to load data: ${err.message}<br><br><button onclick="location.reload()" style="padding:6px 16px;border:none;background:var(--accent2);color:#fff;border-radius:6px;cursor:pointer;font-family:inherit">Retry</button></div>`;
+  }
+})();
+
+function parseCSV(csv) {
+  const rows = [];
+  const lines = csv.split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const cells = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === ',' && !inQuotes) { cells.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    cells.push(current.trim());
+    rows.push(cells);
+  }
+  return rows;
+}
+
+// ===================== MAIN APP =====================
+function initApp(RAW) {
+  const headers = RAW[0];
+  const data = RAW.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = row[i] || '');
+    return obj;
+  }).filter(r => r['Day']); // skip empty rows
+
+  // Parse dates
+  data.forEach(r => {
+    r._date = new Date(r['Day']);
+    r._spend = parseFloat(r['Amount spent (SGD)']) || 0;
+    r._impressions = parseInt(r['Impressions']) || 0;
+    r._reach = parseInt(r['Reach']) || 0;
+    r._clicks = parseInt(r['Link clicks']) || 0;
+    r._ctr = parseFloat(r['CTR (all)']) || 0;
+    r._cpc = parseFloat(r['CPC (cost per link click)']) || 0;
+    r._cpm = parseFloat(r['CPM (cost per 1,000 impressions)']) || 0;
+    r._leads = parseInt(r['Leads']) || 0;
+    r._msgConv = parseInt(r['Messaging conversations started']) || 0;
+    r._conversions = r._leads + r._msgConv;
+    r._costPerLead = parseFloat(r['Cost per lead']) || 0;
+  });
+
+  // State
+  let period = '7d';
+  let customFrom = null, customTo = null;
+  let charts = {};
+
+  // Get date ranges
+  const allDates = data.map(r => r['Day']).filter(Boolean);
+  const maxDate = allDates.sort().pop();
+  const minDate = allDates.sort()[0];
+
+  function getRange() {
+    const end = new Date(maxDate);
+    let start;
+    switch (period) {
+      case 'yesterday': start = new Date(end); break;
+      case '7d': start = new Date(end); start.setDate(start.getDate() - 6); break;
+      case '30d': start = new Date(end); start.setDate(start.getDate() - 29); break;
+      case '90d': start = new Date(end); start.setDate(start.getDate() - 89); break;
+      case 'ytd': start = new Date(end.getFullYear(), 0, 1); break;
+      case 'custom': start = customFrom ? new Date(customFrom) : new Date(minDate); end.setTime(customTo ? new Date(customTo).getTime() : end.getTime()); break;
+      default: start = new Date(end); start.setDate(start.getDate() - 6);
+    }
+    return { start: fmt(start), end: fmt(end) };
+  }
+
+  function getPrevRange() {
+    const { start, end } = getRange();
+    const s = new Date(start), e = new Date(end);
+    const days = Math.round((e - s) / 86400000) + 1;
+    const prevEnd = new Date(s); prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - days + 1);
+    return { start: fmt(prevStart), end: fmt(prevEnd) };
+  }
+
+  function filterByRange(range) {
+    return data.filter(r => r['Day'] >= range.start && r['Day'] <= range.end);
+  }
+
+  const fmt = d => d.toISOString().split('T')[0];
+  const fmtMoney = n => 'SGD ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtNum = n => n.toLocaleString('en-US');
+  const fmtPct = n => n.toFixed(2) + '%';
+
+  // ===================== RENDER =====================
+  function render() {
+    const range = getRange();
+    const prevRange = getPrevRange();
+    const current = filterByRange(range);
+    const prev = filterByRange(prevRange);
+
+    // Aggregate
+    const agg = aggregate(current);
+    const prevAgg = aggregate(prev);
+
+    const changePct = (cur, prv) => prv === 0 ? null : ((cur - prv) / prv * 100);
+
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="header">
+        <div>
+          <h1>Income Insurance <span class="product">Care Secure Pro</span></h1>
+        </div>
+        <div class="updated">Data: ${range.start} → ${range.end}</div>
+      </div>
+
+      <div class="pills">
+        <button class="pill ${period==='yesterday'?'active':''}" data-p="yesterday">Yesterday</button>
+        <button class="pill ${period==='7d'?'active':''}" data-p="7d">Last 7 days</button>
+        <button class="pill ${period==='30d'?'active':''}" data-p="30d">Last 30 days</button>
+        <button class="pill ${period==='90d'?'active':''}" data-p="90d">Last 90 days</button>
+        <button class="pill ${period==='ytd'?'active':''}" data-p="ytd">YTD</button>
+        <button class="pill ${period==='custom'?'active':''}" data-p="custom">Custom</button>
+        <div class="date-inputs ${period==='custom'?'show':''}">
+          <input type="date" id="dateFrom" value="${customFrom||minDate}">
+          <span style="color:var(--text3)">→</span>
+          <input type="date" id="dateTo" value="${customTo||maxDate}">
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        ${kpiCard('Total Spend', fmtMoney(agg.spend), changePct(agg.spend, prevAgg.spend))}
+        ${kpiCard('Leads', fmtNum(agg.conversions), changePct(agg.conversions, prevAgg.conversions), true)}
+        ${kpiCard('Cost Per Lead', agg.conversions > 0 ? fmtMoney(agg.spend / agg.conversions) : '–', agg.conversions > 0 && prevAgg.conversions > 0 ? changePct(agg.spend/agg.conversions, prevAgg.spend/prevAgg.conversions) : null, false, true)}
+        ${kpiCard('Link Clicks', fmtNum(agg.clicks), changePct(agg.clicks, prevAgg.clicks), true)}
+        ${kpiCard('Impressions', fmtNum(agg.impressions), changePct(agg.impressions, prevAgg.impressions))}
+        ${kpiCard('Avg CTR', agg.impressions > 0 ? fmtPct(agg.clicks / agg.impressions * 100) : '–', null)}
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card"><h3>Daily Spend & Leads</h3><canvas id="chartSpend"></canvas></div>
+        <div class="chart-card"><h3>Cost Per Lead Trend</h3><canvas id="chartCPL"></canvas></div>
+      </div>
+
+      <div class="table-card">
+        <h3>Ad Breakdown</h3>
+        <table>
+          <thead>
+            <tr>
+              <th></th><th>Ad Name</th><th>Spend</th><th>Leads</th><th>CPL</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>CPC</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${buildAdTable(current, agg)}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Event listeners
+    document.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        period = btn.dataset.p;
+        if (period === 'custom') {
+          customFrom = document.getElementById('dateFrom')?.value || minDate;
+          customTo = document.getElementById('dateTo')?.value || maxDate;
+        }
+        render();
+      });
+    });
+
+    // Custom date change
+    setTimeout(() => {
+      const df = document.getElementById('dateFrom');
+      const dt = document.getElementById('dateTo');
+      if (df) df.addEventListener('change', () => { customFrom = df.value; if (period === 'custom') render(); });
+      if (dt) dt.addEventListener('change', () => { customTo = dt.value; if (period === 'custom') render(); });
+    }, 50);
+
+    // Charts
+    renderCharts(current, range);
+  }
+
+  function aggregate(rows) {
+    return rows.reduce((a, r) => {
+      a.spend += r._spend;
+      a.clicks += r._clicks;
+      a.impressions += r._impressions;
+      a.reach += r._reach;
+      a.conversions += r._conversions;
+      return a;
+    }, { spend: 0, clicks: 0, impressions: 0, reach: 0, conversions: 0 });
+  }
+
+  function kpiCard(label, value, change, moreIsGood = null, lessIsGood = false) {
+    let changeHTML = '';
+    if (change !== null && change !== undefined && !isNaN(change)) {
+      const isUp = change > 0;
+      let cls = 'flat';
+      if (lessIsGood) cls = isUp ? 'down' : 'up'; // for CPL, up is bad
+      else if (moreIsGood) cls = isUp ? 'up' : 'down';
+      else cls = isUp ? 'up' : 'down';
+      changeHTML = `<div class="change ${cls}">${isUp ? '↑' : '↓'} ${Math.abs(change).toFixed(1)}% vs prev</div>`;
+    }
+    return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div>${changeHTML}</div>`;
+  }
+
+  function buildAdTable(rows, totalAgg) {
+    // Group by ad
+    const byAd = {};
+    for (const r of rows) {
+      const name = r['Ad name'] || 'Unknown';
+      if (!byAd[name]) byAd[name] = { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
+      byAd[name].spend += r._spend;
+      byAd[name].clicks += r._clicks;
+      byAd[name].impressions += r._impressions;
+      byAd[name].conversions += r._conversions;
+    }
+
+    const avgCPL = totalAgg.conversions > 0 ? totalAgg.spend / totalAgg.conversions : 0;
+
+    return Object.entries(byAd)
+      .sort((a, b) => b[1].spend - a[1].spend)
+      .map(([name, d]) => {
+        const cpl = d.conversions > 0 ? d.spend / d.conversions : 0;
+        const ctr = d.impressions > 0 ? (d.clicks / d.impressions * 100) : 0;
+        const cpc = d.clicks > 0 ? d.spend / d.clicks : 0;
+
+        // Traffic light
+        let light = '⚪';
+        if (d.spend === 0) light = '⚪';
+        else if (d.conversions === 0) light = '🔴';
+        else if (cpl <= avgCPL * 0.8) light = '🟢';
+        else if (cpl <= avgCPL * 1.2) light = '🟡';
+        else light = '🔴';
+
+        const shortName = name.length > 50 ? name.substring(0, 50) + '…' : name;
+
+        return `<tr>
+          <td>${light}</td>
+          <td>${shortName}</td>
+          <td class="mono">${fmtMoney(d.spend)}</td>
+          <td class="mono" style="font-weight:600">${d.conversions}</td>
+          <td class="mono ${d.conversions > 0 && cpl <= avgCPL * 0.8 ? 'light-green' : d.conversions > 0 && cpl > avgCPL * 1.5 ? 'light-red' : ''}">${d.conversions > 0 ? fmtMoney(cpl) : '–'}</td>
+          <td class="mono">${fmtNum(d.clicks)}</td>
+          <td class="mono">${fmtNum(d.impressions)}</td>
+          <td class="mono">${fmtPct(ctr)}</td>
+          <td class="mono">${d.clicks > 0 ? fmtMoney(cpc) : '–'}</td>
+        </tr>`;
+      }).join('');
+  }
+
+  function renderCharts(rows, range) {
+    // Group by date
+    const byDate = {};
+    for (const r of rows) {
+      const d = r['Day'];
+      if (!byDate[d]) byDate[d] = { spend: 0, conversions: 0 };
+      byDate[d].spend += r._spend;
+      byDate[d].conversions += r._conversions;
+    }
+
+    const dates = Object.keys(byDate).sort();
+    const spendData = dates.map(d => byDate[d].spend);
+    const convData = dates.map(d => byDate[d].conversions);
+    const cplData = dates.map(d => byDate[d].conversions > 0 ? byDate[d].spend / byDate[d].conversions : null);
+    const shortDates = dates.map(d => { const p = d.split('-'); return p[2] + '/' + p[1]; });
+
+    const chartOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { color: '#8b90a0', font: { size: 11, family: 'DM Sans' }, boxWidth: 8, padding: 12 } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#5c6070', font: { size: 10, family: 'JetBrains Mono' }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#5c6070', font: { size: 10, family: 'JetBrains Mono' } } }
+      }
+    };
+
+    // Spend & Leads chart
+    const ctx1 = document.getElementById('chartSpend');
+    if (ctx1) {
+      new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: shortDates,
+          datasets: [
+            { label: 'Spend (SGD)', data: spendData, backgroundColor: 'rgba(167,139,250,0.5)', borderColor: 'rgba(167,139,250,1)', borderWidth: 1, borderRadius: 3, yAxisID: 'y' },
+            { label: 'Leads', data: convData, type: 'line', borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.1)', pointRadius: 3, pointBackgroundColor: '#34d399', tension: 0.3, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          ...chartOpts,
+          scales: {
+            ...chartOpts.scales,
+            y: { ...chartOpts.scales.y, position: 'left', title: { display: true, text: 'Spend', color: '#5c6070', font: { size: 10 } } },
+            y1: { grid: { display: false }, position: 'right', ticks: { color: '#34d399', font: { size: 10, family: 'JetBrains Mono' }, stepSize: 1 }, title: { display: true, text: 'Leads', color: '#34d399', font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    // CPL trend
+    const ctx2 = document.getElementById('chartCPL');
+    if (ctx2) {
+      new Chart(ctx2, {
+        type: 'line',
+        data: {
+          labels: shortDates,
+          datasets: [{
+            label: 'CPL (SGD)',
+            data: cplData,
+            borderColor: '#fbbf24',
+            backgroundColor: 'rgba(251,191,36,0.1)',
+            pointRadius: 3,
+            pointBackgroundColor: '#fbbf24',
+            tension: 0.3,
+            spanGaps: true
+          }]
+        },
+        options: chartOpts
+      });
+    }
+  }
+
+  // Initial render
+  render();
+}
+</script>
+</body>
+</html>
