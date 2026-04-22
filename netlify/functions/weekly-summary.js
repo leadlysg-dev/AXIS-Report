@@ -3,8 +3,8 @@ const { getSheets, readTab } = require("./sheets-writer");
 const CONFIG = require("./config");
 
 /**
- * Weekly Monday summary — structured format
- * Week X Month, MTD stats, Disability/Retirement split, top ads, next steps
+ * Weekly Monday summary — AARO format
+ * Date range, WoW comparison, category split, Claude bullet insights
  */
 exports.handler = async (event) => {
   const headers = {
@@ -27,43 +27,30 @@ exports.handler = async (event) => {
     const dataRows = allData.slice(1);
     const col = (name) => headerRow.indexOf(name);
 
-    // Date calculations
+    // Date ranges — this week = last 7 days, prev week = 7 days before that
     const today = new Date();
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const twoWeeksAgo = new Date(today);
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const thisWeekEnd = new Date(today);
+    thisWeekEnd.setDate(thisWeekEnd.getDate() - 1); // yesterday
+    const thisWeekStart = new Date(thisWeekEnd);
+    thisWeekStart.setDate(thisWeekStart.getDate() - 6);
 
-    // MTD
-    const mtdStart = new Date(today.getFullYear(), today.getMonth(), 1);
-
-    // Week number in month
-    const dayOfMonth = today.getDate();
-    const weekNum = Math.ceil(dayOfMonth / 7);
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const monthName = monthNames[today.getMonth()];
+    const prevWeekEnd = new Date(thisWeekStart);
+    prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+    const prevWeekStart = new Date(prevWeekEnd);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 6);
 
     // Filter rows
-    const thisWeekRows = dataRows.filter((r) => r[0] >= fmtD(weekAgo) && r[0] < fmtD(today));
-    const prevWeekRows = dataRows.filter((r) => r[0] >= fmtD(twoWeeksAgo) && r[0] < fmtD(weekAgo));
-    const mtdRows = dataRows.filter((r) => r[0] >= fmtD(mtdStart) && r[0] < fmtD(today));
+    const thisWeekRows = dataRows.filter((r) => r[0] >= fmtD(thisWeekStart) && r[0] <= fmtD(thisWeekEnd));
+    const prevWeekRows = dataRows.filter((r) => r[0] >= fmtD(prevWeekStart) && r[0] <= fmtD(prevWeekEnd));
 
     if (thisWeekRows.length === 0) {
       return resp(200, headers, { ok: false, message: "No data for past week" });
     }
 
-    // === AGGREGATE ===
-    const getLeads = (rows) => {
-      return rows.reduce((sum, r) => {
-        return sum + (parseInt(r[col("Leads")] || 0)) + (parseInt(r[col("Messaging conversations started")] || 0));
-      }, 0);
-    };
+    // === HELPERS ===
+    const getLeads = (rows) => rows.reduce((s, r) => s + (parseInt(r[col("Leads")] || 0)) + (parseInt(r[col("Messaging conversations started")] || 0)), 0);
+    const getSpend = (rows) => rows.reduce((s, r) => s + (parseFloat(r[col("Amount spent (SGD)")] || 0)), 0);
 
-    const getSpend = (rows) => {
-      return rows.reduce((sum, r) => sum + (parseFloat(r[col("Amount spent (SGD)")] || 0)), 0);
-    };
-
-    // Filter by category (check ad set name AND campaign name)
     const isDisability = (r) => {
       const adset = (r[col("Ad set name")] || "").toLowerCase();
       const campaign = (r[col("Campaign name")] || "").toLowerCase();
@@ -76,83 +63,87 @@ exports.handler = async (event) => {
       return adset.includes("retirement") || campaign.includes("retirement");
     };
 
-    // This week
-    const weekLeads = getLeads(thisWeekRows);
-    const weekSpend = getSpend(thisWeekRows);
+    // === THIS WEEK TOTALS ===
+    const twLeads = getLeads(thisWeekRows);
+    const twSpend = getSpend(thisWeekRows);
+    const twCPL = twLeads > 0 ? twSpend / twLeads : 0;
 
-    // Prev week
-    const prevLeads = getLeads(prevWeekRows);
-    const prevSpend = getSpend(prevWeekRows);
+    // === PREV WEEK TOTALS ===
+    const pwLeads = getLeads(prevWeekRows);
+    const pwSpend = getSpend(prevWeekRows);
+    const pwCPL = pwLeads > 0 ? pwSpend / pwLeads : 0;
 
-    // WoW
-    const wowLeads = prevLeads > 0 ? ((weekLeads - prevLeads) / prevLeads * 100).toFixed(0) : "N/A";
-    const wowSpend = prevSpend > 0 ? ((weekSpend - prevSpend) / prevSpend * 100).toFixed(0) : "N/A";
+    // === CATEGORY SPLIT ===
+    const twDisRows = thisWeekRows.filter(isDisability);
+    const twRetRows = thisWeekRows.filter(isRetirement);
+    const pwDisRows = prevWeekRows.filter(isDisability);
+    const pwRetRows = prevWeekRows.filter(isRetirement);
 
-    // MTD
-    const mtdSpend = getSpend(mtdRows);
-    const mtdLeads = getLeads(mtdRows);
-    const mtdCPL = mtdLeads > 0 ? mtdSpend / mtdLeads : 0;
+    const twDisLeads = getLeads(twDisRows);
+    const twDisSpend = getSpend(twDisRows);
+    const twDisCPL = twDisLeads > 0 ? twDisSpend / twDisLeads : 0;
 
-    // Disability / Retirement split (MTD)
-    const mtdDisabilityRows = mtdRows.filter(isDisability);
-    const mtdRetirementRows = mtdRows.filter(isRetirement);
-    const mtdDisabilityLeads = getLeads(mtdDisabilityRows);
-    const mtdRetirementLeads = getLeads(mtdRetirementRows);
+    const twRetLeads = getLeads(twRetRows);
+    const twRetSpend = getSpend(twRetRows);
+    const twRetCPL = twRetLeads > 0 ? twRetSpend / twRetLeads : 0;
 
-    // === TOP PERFORMING ADS (MTD) ===
-    const adStats = {};
-    for (const r of mtdRows) {
-      const name = r[col("Ad name")] || "Unknown";
-      if (!adStats[name]) adStats[name] = { spend: 0, leads: 0 };
-      adStats[name].spend += parseFloat(r[col("Amount spent (SGD)")] || 0);
-      adStats[name].leads += (parseInt(r[col("Leads")] || 0)) + (parseInt(r[col("Messaging conversations started")] || 0));
-    }
+    const pwDisLeads = getLeads(pwDisRows);
+    const pwDisSpend = getSpend(pwDisRows);
+    const pwDisCPL = pwDisLeads > 0 ? pwDisSpend / pwDisLeads : 0;
 
-    // Sort by leads desc, then CPL asc
-    const topAds = Object.entries(adStats)
-      .filter(([, d]) => d.leads > 0)
-      .sort((a, b) => {
-        if (b[1].leads !== a[1].leads) return b[1].leads - a[1].leads;
-        const cplA = a[1].spend / a[1].leads;
-        const cplB = b[1].spend / b[1].leads;
-        return cplA - cplB;
-      })
-      .slice(0, 3);
+    const pwRetLeads = getLeads(pwRetRows);
+    const pwRetSpend = getSpend(pwRetRows);
+    const pwRetCPL = pwRetLeads > 0 ? pwRetSpend / pwRetLeads : 0;
+
+    // Date formatting
+    const fmtDisplay = (d) => {
+      const day = d.getDate();
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    };
+
+    // Traffic light for category
+    const catLight = (twCpl, pwCpl, twL) => {
+      if (twL === 0) return "🔴";
+      if (pwCpl === 0) return "🟢"; // no prev data, has leads = green
+      if (twCpl <= pwCpl) return "🟢"; // improved or same
+      if (twCpl > pwCpl * 1.15) return "🔴"; // >15% worse
+      return "🟡"; // slightly worse
+    };
 
     // === BUILD MESSAGE ===
-    let msg = `Weekly Performance Summary (Week ${weekNum}, ${monthName})\n\n`;
+    let msg = `📊 Weekly Report\n`;
+    msg += `This week: ${fmtDisplay(thisWeekStart)} – ${fmtDisplay(thisWeekEnd)}\n`;
+    msg += `Previous week: ${fmtDisplay(prevWeekStart)} – ${fmtDisplay(prevWeekEnd)}\n\n`;
 
-    msg += `Total MTD Spend: $${mtdSpend.toFixed(2)}\n`;
-    msg += `Total Leads: ${mtdLeads}\n`;
-    msg += `Total Disability Leads: ${mtdDisabilityLeads}\n`;
-    msg += `Total Retirement Leads: ${mtdRetirementLeads}\n`;
-    msg += `Cost Per Lead: $${mtdCPL.toFixed(2)}\n\n`;
+    // Totals
+    msg += `This week: ${twLeads} leads · SGD ${fmtN(twSpend)} · SGD ${fmtN(twCPL)}/lead\n`;
+    msg += `Prev week: ${pwLeads} leads · SGD ${fmtN(pwSpend)} · SGD ${fmtN(pwCPL)}/lead\n\n`;
 
-    if (wowLeads !== "N/A") {
-      msg += `WoW Leads: ${wowLeads > 0 ? "+" : ""}${wowLeads}%\n`;
-    }
-    if (wowSpend !== "N/A") {
-      msg += `WoW Spend: ${wowSpend > 0 ? "+" : ""}${wowSpend}%\n`;
-    }
+    // Category breakdown
+    const disLight = catLight(twDisCPL, pwDisCPL, twDisLeads);
+    const retLight = catLight(twRetCPL, pwRetCPL, twRetLeads);
 
-    msg += `\nMTD Top Performing Ads:\n`;
+    msg += `${disLight} Disability — ${twDisLeads} leads · SGD ${fmtN(twDisSpend)} · SGD ${fmtN(twDisCPL)}/lead`;
+    if (pwDisLeads > 0) msg += ` (prev: ${pwDisLeads} leads · SGD ${fmtN(pwDisCPL)}/lead)`;
+    msg += `\n`;
 
-    // Build top ads data for Claude
-    const topAdsData = [];
-    for (const [name, data] of topAds) {
-      const cpl = data.leads > 0 ? data.spend / data.leads : 0;
-      const shortName = name.length > 45 ? name.substring(0, 45) + "…" : name;
-      msg += `\n${shortName}\n`;
-      msg += `• Spend: $${data.spend.toFixed(2)}\n`;
-      msg += `• Leads: ${data.leads}\n`;
-      msg += `• CPL: $${cpl.toFixed(2)}\n`;
-      topAdsData.push({ name, spend: data.spend, leads: data.leads, cpl });
-    }
+    msg += `${retLight} Retirement — ${twRetLeads} leads · SGD ${fmtN(twRetSpend)} · SGD ${fmtN(twRetCPL)}/lead`;
+    if (pwRetLeads > 0) msg += ` (prev: ${pwRetLeads} leads · SGD ${fmtN(pwRetCPL)}/lead)`;
+    msg += `\n`;
 
-    // Generate Claude insight for top ads + next steps
+    // Generate Claude insights
     let insight = "";
     if (CONFIG.anthropic.apiKey) {
-      insight = await generateInsight(topAdsData, adStats, mtdSpend, mtdLeads, mtdCPL, weekLeads, prevLeads, mtdDisabilityLeads, mtdRetirementLeads);
+      insight = await generateInsight({
+        twLeads, twSpend, twCPL,
+        pwLeads, pwSpend, pwCPL,
+        twDisLeads, twDisSpend, twDisCPL,
+        twRetLeads, twRetSpend, twRetCPL,
+        pwDisLeads, pwDisCPL,
+        pwRetLeads, pwRetCPL,
+        thisWeekRows, prevWeekRows, col,
+      });
     }
 
     if (insight) msg += `\n${insight}`;
@@ -171,11 +162,35 @@ exports.handler = async (event) => {
   }
 };
 
-async function generateInsight(topAds, allAds, totalSpend, totalLeads, avgCPL, weekLeads, prevLeads, disabilityLeads, retirementLeads) {
+async function generateInsight(data) {
   try {
-    const underperformers = Object.entries(allAds)
-      .filter(([, d]) => d.spend > 5 && (d.leads === 0 || (d.leads > 0 && d.spend / d.leads > avgCPL * 1.5)))
-      .map(([name, d]) => `${name}: $${d.spend.toFixed(2)} spend, ${d.leads} leads, $${d.leads > 0 ? (d.spend / d.leads).toFixed(2) : '∞'} CPL`);
+    const {
+      twLeads, twSpend, twCPL,
+      pwLeads, pwSpend, pwCPL,
+      twDisLeads, twDisSpend, twDisCPL,
+      twRetLeads, twRetSpend, twRetCPL,
+      pwDisLeads, pwDisCPL,
+      pwRetLeads, pwRetCPL,
+      thisWeekRows, prevWeekRows, col,
+    } = data;
+
+    // Build per-ad stats for this week
+    const adStats = {};
+    for (const r of thisWeekRows) {
+      const name = r[col("Ad name")] || "Unknown";
+      if (!adStats[name]) adStats[name] = { spend: 0, leads: 0 };
+      adStats[name].spend += parseFloat(r[col("Amount spent (SGD)")] || 0);
+      adStats[name].leads += (parseInt(r[col("Leads")] || 0)) + (parseInt(r[col("Messaging conversations started")] || 0));
+    }
+
+    const adSummary = Object.entries(adStats)
+      .sort((a, b) => b[1].leads - a[1].leads)
+      .slice(0, 5)
+      .map(([n, d]) => `${n}: $${d.spend.toFixed(2)} spend, ${d.leads} leads, $${d.leads > 0 ? (d.spend / d.leads).toFixed(2) : '∞'} CPL`)
+      .join("\n");
+
+    const leadsPctChange = pwLeads > 0 ? ((twLeads - pwLeads) / pwLeads * 100).toFixed(0) : "N/A";
+    const cplPctChange = pwCPL > 0 ? ((twCPL - pwCPL) / pwCPL * 100).toFixed(0) : "N/A";
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -186,35 +201,32 @@ async function generateInsight(topAds, allAds, totalSpend, totalLeads, avgCPL, w
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 500,
-        system: `You are a sharp performance marketing strategist writing a weekly Telegram briefing about Meta Ads for an insurance agency. Currency is SGD.
+        max_tokens: 400,
+        system: `You are a sharp performance marketing strategist writing weekly insights for a Telegram briefing about Meta Ads. Currency is SGD.
 
-You need to provide two things:
+Write exactly 3-4 bullet points. Each bullet starts with either 📈 (positive trend) or ⚠️ (concern/watch item).
 
-1. For each top performing ad, write ONE sentence explaining why you think it's performing well (based on the ad name, spend efficiency, lead volume). Be specific and strategic.
-
-2. Write a "Next Steps" section with 3 bullet points:
-   - First bullet: Always remind them to call all leads that came through ASAP to reduce friction
-   - Second bullet: An optimisation suggestion based on the data (budget shifts, pausing underperformers, scaling winners)
-   - Third bullet: A creative suggestion (new angles to test, duplicate winning creatives with variations)
-
-Tone: professional, confident, strategic. No fluff. Use bullet points with • for the Next Steps section only.`,
+Rules:
+- Be specific with numbers and percentages
+- Reference the Disability and Retirement categories by name
+- Mention specific ads if they drove the results
+- Last bullet should be a forward-looking recommendation
+- No greetings, no sign-off, no headers
+- Each bullet is one sentence, max two
+- Professional and strategic tone`,
         messages: [{
           role: "user",
-          content: `MTD Performance:
-Total Spend: $${totalSpend.toFixed(2)}
-Total Leads: ${totalLeads} (Disability: ${disabilityLeads}, Retirement: ${retirementLeads})
-Avg CPL: $${avgCPL.toFixed(2)}
-This week leads: ${weekLeads}, Last week: ${prevLeads}
+          content: `This week: ${twLeads} leads, SGD ${twSpend.toFixed(2)} spend, SGD ${twCPL.toFixed(2)} CPL
+Prev week: ${pwLeads} leads, SGD ${pwSpend.toFixed(2)} spend, SGD ${pwCPL.toFixed(2)} CPL
+WoW leads change: ${leadsPctChange}%, WoW CPL change: ${cplPctChange}%
 
-Top performing ads:
-${topAds.map(a => `${a.name}: $${a.spend.toFixed(2)} spend, ${a.leads} leads, $${a.cpl.toFixed(2)} CPL`).join("\n")}
+Disability: ${twDisLeads} leads, SGD ${twDisCPL.toFixed(2)} CPL (prev: ${pwDisLeads} leads, SGD ${pwDisCPL.toFixed(2)} CPL)
+Retirement: ${twRetLeads} leads, SGD ${twRetCPL.toFixed(2)} CPL (prev: ${pwRetLeads} leads, SGD ${pwRetCPL.toFixed(2)} CPL)
 
-${underperformers.length > 0 ? `Underperforming ads:\n${underperformers.join("\n")}` : "No clear underperformers."}
+Top ads this week:
+${adSummary}
 
-Write:
-1. One sentence per top ad explaining why it's performing well (prefix each with "• ")
-2. A "Next Steps:" section with 3 bullets`,
+Write the insight bullets.`,
         }],
       }),
     });
@@ -239,10 +251,14 @@ async function sendTelegram(text) {
   return json;
 }
 
-function resp(code, headers, body) {
-  return { statusCode: code, headers, body: JSON.stringify(body) };
+function resp(code, h, body) {
+  return { statusCode: code, headers: h, body: JSON.stringify(body) };
 }
 
 function fmtD(d) {
   return d.toISOString().split("T")[0];
+}
+
+function fmtN(n) {
+  return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
