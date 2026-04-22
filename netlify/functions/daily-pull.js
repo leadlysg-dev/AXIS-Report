@@ -39,10 +39,13 @@ exports.handler = async (event) => {
       // Single date mode
       dates = [params.date];
     } else {
-      // Auto mode — pull 2 days ago (Meta data needs ~24h to finalize)
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-      dates = [formatDate(twoDaysAgo)];
+      // Auto mode — pull yesterday (Singapore time)
+      const now = new Date();
+      const sgOffset = 8 * 60 * 60 * 1000;
+      const sgNow = new Date(now.getTime() + sgOffset);
+      const yesterday = new Date(sgNow);
+      yesterday.setDate(yesterday.getDate() - 1);
+      dates = [formatDate(yesterday)];
     }
 
     const sheets = await getSheets();

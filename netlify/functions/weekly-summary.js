@@ -27,10 +27,15 @@ exports.handler = async (event) => {
     const dataRows = allData.slice(1);
     const col = (name) => headerRow.indexOf(name);
 
-    // Date ranges — this week = last 7 days, prev week = 7 days before that
-    const today = new Date();
+    // Date ranges — use Singapore time (UTC+8)
+    const now = new Date();
+    const sgOffset = 8 * 60 * 60 * 1000;
+    const today = new Date(now.getTime() + sgOffset);
+    // Reset to midnight
+    today.setUTCHours(0, 0, 0, 0);
+
     const thisWeekEnd = new Date(today);
-    thisWeekEnd.setDate(thisWeekEnd.getDate() - 1); // yesterday
+    thisWeekEnd.setDate(thisWeekEnd.getDate() - 1); // yesterday SGT
     const thisWeekStart = new Date(thisWeekEnd);
     thisWeekStart.setDate(thisWeekStart.getDate() - 6);
 
