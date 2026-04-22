@@ -65,19 +65,9 @@
     <div id="backfillResult" class="output"></div>
   </div>
 
-  <!-- DAILY INSIGHT -->
-  <div class="card">
-    <h2>💬 Daily Telegram Briefing</h2>
-    <div class="row">
-      <button class="secondary" onclick="previewInsight()">Preview</button>
-      <button class="green" onclick="sendInsight()">Generate & Send to Telegram</button>
-    </div>
-    <div id="insightResult" class="output"></div>
-  </div>
-
   <!-- WEEKLY SUMMARY -->
   <div class="card">
-    <h2>📅 Weekly Summary (Tuesday)</h2>
+    <h2>📅 Weekly Summary (Monday 7:30am)</h2>
     <div class="row">
       <button class="secondary" onclick="previewWeekly()">Preview</button>
       <button class="green" onclick="sendWeekly()">Generate & Send to Telegram</button>
@@ -122,16 +112,6 @@
       const start = document.getElementById('backfillStart').value;
       const end = document.getElementById('backfillEnd').value;
       callApi(`/api/daily-pull?start=${start}&end=${end}`, 'backfillResult');
-    }
-
-    function previewInsight() {
-      callApi('/api/daily-insight?preview=true', 'insightResult');
-    }
-
-    function sendInsight() {
-      if (confirm('Send daily briefing to Telegram now?')) {
-        callApi('/api/daily-insight', 'insightResult');
-      }
     }
 
     function previewWeekly() {

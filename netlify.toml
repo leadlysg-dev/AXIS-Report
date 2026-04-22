@@ -9,13 +9,9 @@
   [functions.daily-pull]
     schedule = "0 23 * * *"
 
-  # Daily Telegram briefing at 7:30am SGT (11:30pm UTC previous day)
-  [functions.daily-insight]
-    schedule = "30 23 * * *"
-
-  # Weekly Tuesday summary at 8:00am SGT (0:00am UTC Tuesday)
+  # Weekly Monday briefing at 7:30am SGT (11:30pm UTC Sunday)
   [functions.weekly-summary]
-    schedule = "0 0 * * 2"
+    schedule = "30 23 * * 0"
 
 [[redirects]]
   from = "/api/*"
