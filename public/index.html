@@ -65,6 +65,20 @@
     <div id="backfillResult" class="output"></div>
   </div>
 
+  <!-- GHL LEADS PULL -->
+  <div class="card">
+    <h2>👥 GHL Leads Pull (FB & IG → Sheet)</h2>
+    <div class="row">
+      <label>From:</label>
+      <input type="date" id="ghlStart" />
+      <label>To:</label>
+      <input type="date" id="ghlEnd" />
+      <button onclick="runGHLPull()">Pull Leads</button>
+    </div>
+    <p style="color:#6b7280;font-size:0.75rem;margin-top:4px;">Pulls contacts from GHL, splits into FB LEADS and IG LEADS tabs.</p>
+    <div id="ghlResult" class="output"></div>
+  </div>
+
   <!-- WEEKLY SUMMARY -->
   <div class="card">
     <h2>📅 Weekly Summary (Monday 7:30am)</h2>
@@ -85,6 +99,11 @@
     document.getElementById('pullDate').value = fmt(yesterday);
     document.getElementById('backfillEnd').value = fmt(yesterday);
     document.getElementById('backfillStart').value = '2026-01-01';
+
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    document.getElementById('ghlStart').value = fmt(weekAgo);
+    document.getElementById('ghlEnd').value = fmt(yesterday);
 
     async function callApi(path, outputId) {
       const out = document.getElementById(outputId);
@@ -122,6 +141,12 @@
       if (confirm('Send weekly summary to Telegram now?')) {
         callApi('/api/weekly-summary', 'weeklyResult');
       }
+    }
+
+    function runGHLPull() {
+      const start = document.getElementById('ghlStart').value;
+      const end = document.getElementById('ghlEnd').value;
+      callApi(`/api/ghl-leads-pull?start=${start}&end=${end}`, 'ghlResult');
     }
   </script>
 </body>

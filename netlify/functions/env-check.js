@@ -12,6 +12,7 @@ exports.handler = async () => {
     { name: "TELEGRAM_BOT_TOKEN", ok: !!process.env.TELEGRAM_BOT_TOKEN },
     { name: "TELEGRAM_CHAT_ID", ok: !!process.env.TELEGRAM_CHAT_ID },
     { name: "ANTHROPIC_API_KEY", ok: !!process.env.ANTHROPIC_API_KEY },
+    { name: "GHL_API_KEY", ok: !!process.env.GHL_API_KEY },
   ];
 
   const allOk = checks.every((c) => c.ok);

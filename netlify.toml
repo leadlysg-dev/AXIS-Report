@@ -13,6 +13,10 @@
   [functions.weekly-summary]
     schedule = "30 23 * * 0"
 
+  # Weekly GHL leads pull at 7:00am SGT Monday (11:00pm UTC Sunday) — runs before weekly summary
+  [functions.ghl-leads-pull]
+    schedule = "0 23 * * 0"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

@@ -116,6 +116,28 @@ exports.handler = async (event) => {
       return "🟡"; // slightly worse
     };
 
+    // === READ GHL LEADS FROM SHEET ===
+    let fbLeadCount = 0;
+    let igLeadCount = 0;
+    let prevFbLeadCount = 0;
+    let prevIgLeadCount = 0;
+
+    try {
+      const fbData = await readTab(sheets, CONFIG.sheets.fbLeadsTab);
+      const igData = await readTab(sheets, CONFIG.sheets.igLeadsTab);
+
+      if (fbData.length > 1) {
+        fbLeadCount = fbData.slice(1).filter((r) => r[0] >= fmtD(thisWeekStart) && r[0] <= fmtD(thisWeekEnd)).length;
+        prevFbLeadCount = fbData.slice(1).filter((r) => r[0] >= fmtD(prevWeekStart) && r[0] <= fmtD(prevWeekEnd)).length;
+      }
+      if (igData.length > 1) {
+        igLeadCount = igData.slice(1).filter((r) => r[0] >= fmtD(thisWeekStart) && r[0] <= fmtD(thisWeekEnd)).length;
+        prevIgLeadCount = igData.slice(1).filter((r) => r[0] >= fmtD(prevWeekStart) && r[0] <= fmtD(prevWeekEnd)).length;
+      }
+    } catch (err) {
+      console.log("No GHL lead tabs yet:", err.message);
+    }
+
     // === BUILD MESSAGE ===
     let msg = `📊 Weekly Report\n`;
     msg += `This week: ${fmtDisplay(thisWeekStart)} – ${fmtDisplay(thisWeekEnd)}\n`;
@@ -136,6 +158,17 @@ exports.handler = async (event) => {
     msg += `${retLight} Retirement — ${twRetLeads} leads · SGD ${fmtN(twRetSpend)} · SGD ${fmtN(twRetCPL)}/lead`;
     if (pwRetLeads > 0) msg += ` (prev: ${pwRetLeads} leads · SGD ${fmtN(pwRetCPL)}/lead)`;
     msg += `\n`;
+
+    // GHL leads
+    if (fbLeadCount > 0 || igLeadCount > 0) {
+      msg += `\nFB Leads (GHL): ${fbLeadCount}`;
+      if (prevFbLeadCount > 0) msg += ` (prev: ${prevFbLeadCount})`;
+      msg += `\n`;
+
+      msg += `IG Leads (GHL): ${igLeadCount}`;
+      if (prevIgLeadCount > 0) msg += ` (prev: ${prevIgLeadCount})`;
+      msg += `\n`;
+    }
 
     // Generate Claude insights
     let insight = "";
