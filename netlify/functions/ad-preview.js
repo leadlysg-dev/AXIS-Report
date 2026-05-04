@@ -30,7 +30,7 @@ exports.handler = async (event) => {
     ].join(",");
 
     let allAds = [];
-    let url = `https://graph.facebook.com/v21.0/${adAccountId}/ads?fields=${fields}&effective_status=["ACTIVE","PAUSED"]&limit=100&access_token=${accessToken}`;
+    let url = `https://graph.facebook.com/v21.0/${adAccountId}/ads?fields=${fields}&effective_status=["ACTIVE","PAUSED","ADSET_PAUSED","CAMPAIGN_PAUSED","PENDING_REVIEW","DISAPPROVED","PREAPPROVED","PENDING_BILLING_INFO","WITH_ISSUES"]&limit=100&access_token=${accessToken}`;
 
     while (url) {
       const res = await fetch(url);
